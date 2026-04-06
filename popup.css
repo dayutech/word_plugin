@@ -90,6 +90,12 @@ h1 {
   font-weight: 700;
 }
 
+.mode-btn.is-kb-selected,
+.clear.is-kb-selected,
+.search-toggle.is-kb-selected {
+  box-shadow: 0 0 0 2px #0f766e;
+}
+
 .search-panel {
   margin-bottom: 10px;
 }
@@ -127,6 +133,11 @@ h1 {
   border-radius: 10px;
   background: var(--panel);
   overflow: hidden;
+}
+
+.item.is-kb-selected {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.22);
 }
 
 .item-main {
@@ -232,6 +243,10 @@ button {
   stroke-linejoin: round;
 }
 
+.icon-btn.is-kb-selected {
+  box-shadow: 0 0 0 2px #0f766e;
+}
+
 .search-toggle {
   border: 1px solid var(--line);
   background: #fff;
@@ -309,6 +324,10 @@ button {
 .pager-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.pager-btn.is-kb-selected {
+  box-shadow: 0 0 0 2px #0f766e;
 }
 
 .page-info {

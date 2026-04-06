@@ -5,6 +5,18 @@ const MAIN_MODE_RECITE = "recite";
 const RECITE_VIEW_WORD = "word";
 const RECITE_VIEW_MEANING = "meaning";
 const ITEMS_PER_PAGE = 10;
+const PART_CARD = "card";
+const PART_REVEAL = "reveal";
+const PART_DELETE = "delete";
+const PAGER_PREV = "prev";
+const PAGER_NEXT = "next";
+const TOP_SEARCH = "search";
+const TOP_CLEAR = "clear";
+const TOP_MODE_MEMORY = "mode_memory";
+const TOP_MODE_RECITE = "mode_recite";
+const TOP_RECITE_WORD = "recite_word";
+const TOP_RECITE_MEANING = "recite_meaning";
+
 const DEFAULT_UI_MODE = {
   main: MAIN_MODE_MEMORY,
   reciteView: RECITE_VIEW_WORD
@@ -33,6 +45,9 @@ let uiMode = { ...DEFAULT_UI_MODE };
 let reciteOrderKeys = [];
 let revealedKeys = new Set();
 let currentPage = 1;
+let currentPageItems = [];
+let currentTotalPages = 1;
+let selection = null;
 
 async function init() {
   const [savedWords, savedUiMode] = await Promise.all([getSavedWords(), getUiMode()]);
@@ -42,100 +57,358 @@ async function init() {
     startReciteRound();
   }
   syncModeControls();
+  bindEvents();
   renderCurrentList({ resetPage: true });
 }
 
-searchInput.addEventListener("input", () => {
-  renderCurrentList({ resetPage: true });
-});
+function bindEvents() {
+  searchInput.addEventListener("input", () => {
+    renderCurrentList({ resetPage: true, preferredSelection: selection });
+  });
 
-searchToggleBtn.addEventListener("click", () => {
-  const willOpen = searchPanel.hidden;
-  searchPanel.hidden = !willOpen;
-  searchToggleBtn.classList.toggle("is-active", willOpen);
-  if (willOpen) {
-    searchInput.focus();
-    return;
-  }
+  searchToggleBtn.addEventListener("click", () => {
+    setSelection({ type: "top", id: TOP_SEARCH });
+    const willOpen = searchPanel.hidden;
+    searchPanel.hidden = !willOpen;
+    searchToggleBtn.classList.toggle("is-active", willOpen);
+    if (willOpen) {
+      searchInput.focus();
+      return;
+    }
 
-  if (searchInput.value.trim()) {
-    searchInput.value = "";
-    renderCurrentList({ resetPage: true });
-  }
-});
+    if (searchInput.value.trim()) {
+      searchInput.value = "";
+      renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_SEARCH } });
+    }
+  });
 
-clearBtn.addEventListener("click", async () => {
-  if (!cache.length) {
-    return;
-  }
+  clearBtn.addEventListener("click", async () => {
+    setSelection({ type: "top", id: TOP_CLEAR });
+    if (!cache.length) {
+      return;
+    }
 
-  const ok = confirm("确定清空全部单词吗？");
-  if (!ok) {
-    return;
-  }
+    const ok = confirm("确定清空全部单词吗？");
+    if (!ok) {
+      return;
+    }
 
-  cache = [];
-  await chrome.storage.local.set({ [STORAGE_KEY]: [] });
-  startReciteRound();
-  renderCurrentList({ resetPage: true });
-});
-
-modeMemoryBtn.addEventListener("click", async () => {
-  uiMode.main = MAIN_MODE_MEMORY;
-  revealedKeys.clear();
-  await saveUiMode();
-  syncModeControls();
-  renderCurrentList({ resetPage: true });
-});
-
-modeReciteBtn.addEventListener("click", async () => {
-  uiMode.main = MAIN_MODE_RECITE;
-  startReciteRound();
-  await saveUiMode();
-  syncModeControls();
-  renderCurrentList({ resetPage: true });
-});
-
-reciteWordBtn.addEventListener("click", async () => {
-  uiMode.main = MAIN_MODE_RECITE;
-  uiMode.reciteView = RECITE_VIEW_WORD;
-  revealedKeys.clear();
-  if (!reciteOrderKeys.length) {
+    cache = [];
+    await chrome.storage.local.set({ [STORAGE_KEY]: [] });
     startReciteRound();
-  }
-  await saveUiMode();
-  syncModeControls();
-  renderCurrentList({ resetPage: true });
-});
+    renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_CLEAR } });
+  });
 
-reciteMeaningBtn.addEventListener("click", async () => {
-  uiMode.main = MAIN_MODE_RECITE;
-  uiMode.reciteView = RECITE_VIEW_MEANING;
-  revealedKeys.clear();
-  if (!reciteOrderKeys.length) {
+  modeMemoryBtn.addEventListener("click", async () => {
+    setSelection({ type: "top", id: TOP_MODE_MEMORY });
+    uiMode.main = MAIN_MODE_MEMORY;
+    revealedKeys.clear();
+    await saveUiMode();
+    syncModeControls();
+    renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_MODE_MEMORY } });
+  });
+
+  modeReciteBtn.addEventListener("click", async () => {
+    setSelection({ type: "top", id: TOP_MODE_RECITE });
+    uiMode.main = MAIN_MODE_RECITE;
     startReciteRound();
-  }
-  await saveUiMode();
-  syncModeControls();
-  renderCurrentList({ resetPage: true });
-});
+    await saveUiMode();
+    syncModeControls();
+    renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_MODE_RECITE } });
+  });
 
-prevPageBtn.addEventListener("click", () => {
-  if (currentPage <= 1) {
+  reciteWordBtn.addEventListener("click", async () => {
+    setSelection({ type: "top", id: TOP_RECITE_WORD });
+    uiMode.main = MAIN_MODE_RECITE;
+    uiMode.reciteView = RECITE_VIEW_WORD;
+    revealedKeys.clear();
+    if (!reciteOrderKeys.length) {
+      startReciteRound();
+    }
+    await saveUiMode();
+    syncModeControls();
+    renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_RECITE_WORD } });
+  });
+
+  reciteMeaningBtn.addEventListener("click", async () => {
+    setSelection({ type: "top", id: TOP_RECITE_MEANING });
+    uiMode.main = MAIN_MODE_RECITE;
+    uiMode.reciteView = RECITE_VIEW_MEANING;
+    revealedKeys.clear();
+    if (!reciteOrderKeys.length) {
+      startReciteRound();
+    }
+    await saveUiMode();
+    syncModeControls();
+    renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_RECITE_MEANING } });
+  });
+
+  prevPageBtn.addEventListener("click", () => {
+    setSelection({ type: "pager", part: PAGER_PREV });
+    if (currentPage <= 1) {
+      return;
+    }
+    currentPage -= 1;
+    renderCurrentList({ preferredSelection: { type: "pager", part: PAGER_PREV } });
+  });
+
+  nextPageBtn.addEventListener("click", () => {
+    setSelection({ type: "pager", part: PAGER_NEXT });
+    if (currentPage >= currentTotalPages) {
+      return;
+    }
+    currentPage += 1;
+    renderCurrentList({ preferredSelection: { type: "pager", part: PAGER_NEXT } });
+  });
+
+  document.addEventListener("keydown", handleKeyboardNavigation);
+}
+
+function handleKeyboardNavigation(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey) {
     return;
   }
-  currentPage -= 1;
-  renderCurrentList();
-});
 
-nextPageBtn.addEventListener("click", () => {
-  currentPage += 1;
-  renderCurrentList();
-});
+  const target = event.target;
+  if (target instanceof HTMLElement) {
+    const tag = target.tagName.toLowerCase();
+    if (tag === "input" || tag === "textarea" || target.isContentEditable) {
+      return;
+    }
+  }
 
-window.addEventListener("resize", () => {
-  renderCurrentList({ resetPage: true });
-});
+  if (event.key === "ArrowDown") {
+    if (moveSelectionVertical(1)) {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (event.key === "ArrowUp") {
+    if (moveSelectionVertical(-1)) {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (event.key === "ArrowRight") {
+    if (moveSelectionHorizontal(1)) {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (event.key === "ArrowLeft") {
+    if (moveSelectionHorizontal(-1)) {
+      event.preventDefault();
+    }
+    return;
+  }
+
+  if (event.key === "Enter") {
+    if (handleEnterAction()) {
+      event.preventDefault();
+    }
+  }
+}
+
+function moveSelectionVertical(step) {
+  if (!selection) {
+    const firstTop = getFirstTopSelection();
+    if (firstTop) {
+      setSelection(firstTop);
+      return true;
+    }
+    if (!currentPageItems.length) {
+      if (!pager.hidden) {
+        setSelection({ type: "pager", part: PAGER_NEXT });
+        return true;
+      }
+      return false;
+    }
+    setSelection({ type: "item", itemKey: currentPageItems[0], part: PART_CARD });
+    return true;
+  }
+
+  if (selection.type === "top") {
+    const topRows = getTopControlRows();
+    const pos = findTopPosition(selection.id, topRows);
+    if (!pos) {
+      return false;
+    }
+
+    const targetRowIndex = pos.row + step;
+    if (targetRowIndex >= 0 && targetRowIndex < topRows.length) {
+      const targetRow = topRows[targetRowIndex];
+      const targetCol = Math.min(pos.col, targetRow.length - 1);
+      setSelection({ type: "top", id: targetRow[targetCol] });
+      return true;
+    }
+
+    if (step > 0) {
+      if (currentPageItems.length) {
+        setSelection({ type: "item", itemKey: currentPageItems[0], part: PART_CARD });
+        return true;
+      }
+      if (!pager.hidden) {
+        setSelection({ type: "pager", part: PAGER_NEXT });
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (selection.type === "item") {
+    const index = currentPageItems.indexOf(selection.itemKey);
+    if (index < 0) {
+      return false;
+    }
+
+    const nextIndex = index + step;
+    if (nextIndex >= 0 && nextIndex < currentPageItems.length) {
+      setSelection({ type: "item", itemKey: currentPageItems[nextIndex], part: selection.part });
+      return true;
+    }
+
+    if (step > 0 && !pager.hidden) {
+      setSelection({ type: "pager", part: PAGER_NEXT });
+      return true;
+    }
+
+    if (step < 0) {
+      const topSelection = getLastTopSelectionForItemPart(selection.part);
+      if (topSelection) {
+        setSelection(topSelection);
+        return true;
+      }
+      if (!pager.hidden) {
+        setSelection({ type: "pager", part: PAGER_PREV });
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  if (selection.type === "pager" && step < 0) {
+    if (currentPageItems.length) {
+      setSelection({ type: "item", itemKey: currentPageItems[currentPageItems.length - 1], part: PART_CARD });
+      return true;
+    }
+    const topRows = getTopControlRows();
+    if (topRows.length) {
+      const lastRow = topRows[topRows.length - 1];
+      setSelection({ type: "top", id: lastRow[Math.min(1, lastRow.length - 1)] });
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function moveSelectionHorizontal(step) {
+  if (!selection) {
+    const firstTop = getFirstTopSelection();
+    if (firstTop) {
+      setSelection(firstTop);
+      return true;
+    }
+    if (currentPageItems.length) {
+      setSelection({ type: "item", itemKey: currentPageItems[0], part: PART_CARD });
+      return true;
+    }
+    return false;
+  }
+
+  if (selection.type === "top") {
+    const topRows = getTopControlRows();
+    const pos = findTopPosition(selection.id, topRows);
+    if (!pos) {
+      return false;
+    }
+    const targetCol = pos.col + step;
+    if (targetCol < 0 || targetCol >= topRows[pos.row].length) {
+      return false;
+    }
+    setSelection({ type: "top", id: topRows[pos.row][targetCol] });
+    return true;
+  }
+
+  if (selection.type === "pager") {
+    const nextPart = step > 0 ? PAGER_NEXT : PAGER_PREV;
+    if (selection.part === nextPart) {
+      return false;
+    }
+    setSelection({ type: "pager", part: nextPart });
+    return true;
+  }
+
+  if (selection.type !== "item") {
+    return false;
+  }
+
+  const parts = getAvailableItemParts();
+  const currentPart = normalizeItemPart(selection.part);
+  const index = parts.indexOf(currentPart);
+  const nextIndex = index + step;
+  if (nextIndex < 0 || nextIndex >= parts.length) {
+    return false;
+  }
+
+  setSelection({ type: "item", itemKey: selection.itemKey, part: parts[nextIndex] });
+  return true;
+}
+
+function handleEnterAction() {
+  if (!selection) {
+    return false;
+  }
+
+  if (selection.type === "top") {
+    const button = getTopButtonById(selection.id);
+    if (!button) {
+      return false;
+    }
+    button.click();
+    return true;
+  }
+
+  if (selection.type === "pager") {
+    if (selection.part === PAGER_NEXT) {
+      if (currentPage < currentTotalPages) {
+        currentPage += 1;
+        renderCurrentList({ preferredSelection: { type: "pager", part: PAGER_NEXT } });
+      }
+      return true;
+    }
+
+    if (selection.part === PAGER_PREV) {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        renderCurrentList({ preferredSelection: { type: "pager", part: PAGER_PREV } });
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  if (selection.type !== "item") {
+    return false;
+  }
+
+  if (selection.part === PART_REVEAL) {
+    toggleRevealByKey(selection.itemKey);
+    return true;
+  }
+
+  if (selection.part === PART_DELETE) {
+    void deleteItemByKey(selection.itemKey);
+    return true;
+  }
+
+  return false;
+}
 
 function render(list, totalCount) {
   wordList.innerHTML = "";
@@ -148,19 +421,32 @@ function render(list, totalCount) {
     const wordEl = node.querySelector(".word");
     const meaningEl = node.querySelector(".meaning");
     const revealBtn = node.querySelector(".reveal");
+    const deleteBtn = node.querySelector(".delete");
+
+    node.dataset.itemKey = itemKey;
     wordEl.textContent = item.word;
     meaningEl.textContent = item.meaning;
-    applyItemModeClass(node, itemKey);
-    bindRevealAction(revealBtn, itemKey);
 
-    node.querySelector(".delete").addEventListener("click", async () => {
-      cache = cache.filter((entry) => normalizeWordKey(entry.word) !== itemKey);
-      revealedKeys.delete(itemKey);
-      await chrome.storage.local.set({ [STORAGE_KEY]: cache });
-      if (uiMode.main === MAIN_MODE_RECITE) {
-        startReciteRound();
+    applyItemModeClass(node, itemKey);
+    bindRevealButtonState(revealBtn, itemKey);
+
+    node.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest(".icon-btn")) {
+        return;
       }
-      renderCurrentList();
+      setSelection({ type: "item", itemKey, part: PART_CARD });
+    });
+
+    revealBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      setSelection({ type: "item", itemKey, part: PART_REVEAL });
+      toggleRevealByKey(itemKey);
+    });
+
+    deleteBtn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      setSelection({ type: "item", itemKey, part: PART_DELETE });
+      await deleteItemByKey(itemKey);
     });
 
     wordList.appendChild(node);
@@ -173,17 +459,20 @@ function applyItemModeClass(node, itemKey) {
     node.classList.add("mode-memory");
     return;
   }
+
   if (revealedKeys.has(itemKey)) {
     node.classList.add("is-revealed");
   }
+
   if (uiMode.reciteView === RECITE_VIEW_MEANING) {
     node.classList.add("mode-recite-meaning");
     return;
   }
+
   node.classList.add("mode-recite-word");
 }
 
-function bindRevealAction(button, itemKey) {
+function bindRevealButtonState(button, itemKey) {
   if (uiMode.main !== MAIN_MODE_RECITE) {
     button.hidden = true;
     button.classList.remove("is-active");
@@ -194,21 +483,57 @@ function bindRevealAction(button, itemKey) {
   const isRevealed = revealedKeys.has(itemKey);
   if (uiMode.reciteView === RECITE_VIEW_WORD) {
     button.title = isRevealed ? "隐藏释义" : "显示释义";
-    button.setAttribute("aria-label", button.title);
   } else {
     button.title = isRevealed ? "隐藏单词" : "显示单词";
-    button.setAttribute("aria-label", button.title);
   }
+  button.setAttribute("aria-label", button.title);
   button.classList.toggle("is-active", isRevealed);
+}
 
-  button.addEventListener("click", () => {
-    if (revealedKeys.has(itemKey)) {
-      revealedKeys.delete(itemKey);
-    } else {
-      revealedKeys.add(itemKey);
-    }
-    renderCurrentList();
-  });
+function toggleRevealByKey(itemKey) {
+  if (uiMode.main !== MAIN_MODE_RECITE) {
+    return;
+  }
+
+  if (revealedKeys.has(itemKey)) {
+    revealedKeys.delete(itemKey);
+  } else {
+    revealedKeys.add(itemKey);
+  }
+
+  renderCurrentList({ preferredSelection: { type: "item", itemKey, part: PART_REVEAL } });
+}
+
+async function deleteItemByKey(itemKey) {
+  const fallback = getDeleteFallbackSelection(itemKey);
+  cache = cache.filter((entry) => normalizeWordKey(entry.word) !== itemKey);
+  revealedKeys.delete(itemKey);
+  await chrome.storage.local.set({ [STORAGE_KEY]: cache });
+  if (uiMode.main === MAIN_MODE_RECITE) {
+    startReciteRound();
+  }
+  renderCurrentList({ preferredSelection: fallback });
+}
+
+function getDeleteFallbackSelection(itemKey) {
+  const index = currentPageItems.indexOf(itemKey);
+  if (index < 0) {
+    return null;
+  }
+
+  if (index + 1 < currentPageItems.length) {
+    return { type: "item", itemKey: currentPageItems[index + 1], part: PART_CARD };
+  }
+
+  if (index - 1 >= 0) {
+    return { type: "item", itemKey: currentPageItems[index - 1], part: PART_CARD };
+  }
+
+  if (!pager.hidden) {
+    return { type: "pager", part: nextPageBtn.disabled ? PAGER_PREV : PAGER_NEXT };
+  }
+
+  return getFirstTopSelection();
 }
 
 function syncModeControls() {
@@ -225,6 +550,7 @@ function getFilteredList() {
   if (!keyword) {
     return baseList;
   }
+
   return baseList.filter((item) => {
     const word = String(item.word || "").toLowerCase();
     const meaning = String(item.meaning || "").toLowerCase();
@@ -234,19 +560,25 @@ function getFilteredList() {
 
 function renderCurrentList(options = {}) {
   const resetPage = Boolean(options.resetPage);
+  const preferredSelection = options.preferredSelection || null;
   const filtered = getFilteredList();
-  const itemsPerPage = ITEMS_PER_PAGE;
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
 
   if (resetPage) {
     currentPage = 1;
   }
   currentPage = Math.min(Math.max(currentPage, 1), totalPages);
 
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const currentItems = filtered.slice(startIndex, startIndex + itemsPerPage);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const currentItems = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  currentPageItems = currentItems.map((item) => normalizeWordKey(item.word));
+  currentTotalPages = totalPages;
+
   render(currentItems, filtered.length);
   renderPager(filtered.length, totalPages);
+  reconcileSelection(preferredSelection);
+  applySelectionStyles();
 }
 
 function renderPager(totalCount, totalPages) {
@@ -254,6 +586,270 @@ function renderPager(totalCount, totalPages) {
   pageInfo.textContent = `${currentPage} / ${totalPages}`;
   prevPageBtn.disabled = currentPage <= 1;
   nextPageBtn.disabled = currentPage >= totalPages;
+}
+
+function reconcileSelection(preferredSelection) {
+  if (preferredSelection) {
+    selection = normalizeSelection(preferredSelection);
+  }
+
+  if (selection?.type === "top" && isTopButtonVisible(selection.id)) {
+    return;
+  }
+
+  if (!currentPageItems.length) {
+    if (!pager.hidden) {
+      const defaultPagerPart = nextPageBtn.disabled ? PAGER_PREV : PAGER_NEXT;
+      if (selection?.type !== "pager") {
+        selection = { type: "pager", part: defaultPagerPart };
+      } else {
+        selection = { type: "pager", part: selection.part === PAGER_PREV ? PAGER_PREV : PAGER_NEXT };
+      }
+    } else {
+      const topDefault = getFirstTopSelection();
+      selection = topDefault || null;
+    }
+    return;
+  }
+
+  if (selection?.type === "item" && currentPageItems.includes(selection.itemKey)) {
+    selection = normalizeSelection(selection);
+    return;
+  }
+
+  if (selection?.type === "pager" && !pager.hidden) {
+    selection = normalizeSelection(selection);
+    return;
+  }
+
+  if (selection?.type === "top") {
+    const topDefault = getFirstTopSelection();
+    selection = topDefault || null;
+    return;
+  }
+
+  selection = { type: "item", itemKey: currentPageItems[0], part: PART_CARD };
+}
+
+function setSelection(nextSelection) {
+  selection = normalizeSelection(nextSelection);
+  applySelectionStyles();
+}
+
+function normalizeSelection(nextSelection) {
+  if (!nextSelection) {
+    return null;
+  }
+
+  if (nextSelection.type === "top") {
+    const id = isTopId(nextSelection.id) ? nextSelection.id : TOP_SEARCH;
+    if (isTopButtonVisible(id)) {
+      return { type: "top", id };
+    }
+    const topDefault = getFirstTopSelection();
+    return topDefault || null;
+  }
+
+  if (nextSelection.type === "pager") {
+    return {
+      type: "pager",
+      part: nextSelection.part === PAGER_PREV ? PAGER_PREV : PAGER_NEXT
+    };
+  }
+
+  return {
+    type: "item",
+    itemKey: normalizeWordKey(nextSelection.itemKey),
+    part: normalizeItemPart(nextSelection.part)
+  };
+}
+
+function normalizeItemPart(part) {
+  const parts = getAvailableItemParts();
+  if (parts.includes(part)) {
+    return part;
+  }
+  return PART_CARD;
+}
+
+function getAvailableItemParts() {
+  const parts = [PART_CARD];
+  if (uiMode.main === MAIN_MODE_RECITE) {
+    parts.push(PART_REVEAL);
+  }
+  parts.push(PART_DELETE);
+  return parts;
+}
+
+function applySelectionStyles() {
+  document.querySelectorAll(".item.is-kb-selected").forEach((node) => node.classList.remove("is-kb-selected"));
+  document.querySelectorAll(".icon-btn.is-kb-selected").forEach((node) => node.classList.remove("is-kb-selected"));
+  document.querySelectorAll(".pager-btn.is-kb-selected").forEach((node) => node.classList.remove("is-kb-selected"));
+  document.querySelectorAll(".mode-btn.is-kb-selected").forEach((node) => node.classList.remove("is-kb-selected"));
+  document.querySelectorAll(".clear.is-kb-selected").forEach((node) => node.classList.remove("is-kb-selected"));
+  document.querySelectorAll(".search-toggle.is-kb-selected").forEach((node) => node.classList.remove("is-kb-selected"));
+
+  if (!selection) {
+    return;
+  }
+
+  if (selection.type === "top") {
+    const topButton = getTopButtonById(selection.id);
+    if (topButton) {
+      topButton.classList.add("is-kb-selected");
+      scrollSelectedIntoView(topButton);
+    }
+    return;
+  }
+
+  if (selection.type === "pager") {
+    if (selection.part === PAGER_PREV) {
+      prevPageBtn.classList.add("is-kb-selected");
+      scrollSelectedIntoView(prevPageBtn);
+    } else {
+      nextPageBtn.classList.add("is-kb-selected");
+      scrollSelectedIntoView(nextPageBtn);
+    }
+    return;
+  }
+
+  const itemNode = getRenderedItemNode(selection.itemKey);
+  if (!itemNode) {
+    return;
+  }
+
+  if (selection.part === PART_CARD) {
+    itemNode.classList.add("is-kb-selected");
+    scrollSelectedIntoView(itemNode);
+    return;
+  }
+
+  if (selection.part === PART_REVEAL) {
+    const btn = itemNode.querySelector(".reveal");
+    if (btn && !btn.hidden) {
+      btn.classList.add("is-kb-selected");
+      scrollSelectedIntoView(btn);
+      return;
+    }
+    itemNode.classList.add("is-kb-selected");
+    scrollSelectedIntoView(itemNode);
+    return;
+  }
+
+  const deleteBtn = itemNode.querySelector(".delete");
+  if (deleteBtn) {
+    deleteBtn.classList.add("is-kb-selected");
+    scrollSelectedIntoView(deleteBtn);
+  } else {
+    itemNode.classList.add("is-kb-selected");
+    scrollSelectedIntoView(itemNode);
+  }
+}
+
+function getRenderedItemNode(itemKey) {
+  const rows = wordList.querySelectorAll(".item");
+  for (const row of rows) {
+    if (row.dataset.itemKey === itemKey) {
+      return row;
+    }
+  }
+  return null;
+}
+
+function scrollSelectedIntoView(element) {
+  if (!element || typeof element.scrollIntoView !== "function") {
+    return;
+  }
+  element.scrollIntoView({
+    block: "nearest",
+    inline: "nearest"
+  });
+}
+
+function isTopId(id) {
+  return [
+    TOP_SEARCH,
+    TOP_CLEAR,
+    TOP_MODE_MEMORY,
+    TOP_MODE_RECITE,
+    TOP_RECITE_WORD,
+    TOP_RECITE_MEANING
+  ].includes(id);
+}
+
+function getTopButtonById(id) {
+  if (id === TOP_SEARCH) {
+    return searchToggleBtn;
+  }
+  if (id === TOP_CLEAR) {
+    return clearBtn;
+  }
+  if (id === TOP_MODE_MEMORY) {
+    return modeMemoryBtn;
+  }
+  if (id === TOP_MODE_RECITE) {
+    return modeReciteBtn;
+  }
+  if (id === TOP_RECITE_WORD) {
+    return reciteWordBtn;
+  }
+  if (id === TOP_RECITE_MEANING) {
+    return reciteMeaningBtn;
+  }
+  return null;
+}
+
+function isTopButtonVisible(id) {
+  const button = getTopButtonById(id);
+  if (!button || button.hidden) {
+    return false;
+  }
+  const styles = window.getComputedStyle(button);
+  return styles.display !== "none" && styles.visibility !== "hidden";
+}
+
+function getTopControlRows() {
+  const rows = [
+    [TOP_SEARCH, TOP_CLEAR],
+    [TOP_MODE_MEMORY, TOP_MODE_RECITE]
+  ];
+  if (!reciteSubModes.hidden) {
+    rows.push([TOP_RECITE_WORD, TOP_RECITE_MEANING]);
+  }
+  return rows
+    .map((row) => row.filter((id) => isTopButtonVisible(id)))
+    .filter((row) => row.length > 0);
+}
+
+function getFirstTopSelection() {
+  const rows = getTopControlRows();
+  if (!rows.length) {
+    return null;
+  }
+  return { type: "top", id: rows[0][0] };
+}
+
+function getLastTopSelectionForItemPart(part) {
+  const rows = getTopControlRows();
+  if (!rows.length) {
+    return null;
+  }
+  const lastRow = rows[rows.length - 1];
+  const colHint = part === PART_DELETE || part === PART_REVEAL ? 1 : 0;
+  return {
+    type: "top",
+    id: lastRow[Math.min(colHint, lastRow.length - 1)]
+  };
+}
+
+function findTopPosition(id, rows) {
+  for (let row = 0; row < rows.length; row += 1) {
+    const col = rows[row].indexOf(id);
+    if (col >= 0) {
+      return { row, col };
+    }
+  }
+  return null;
 }
 
 async function getSavedWords() {
