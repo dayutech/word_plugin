@@ -31,18 +31,29 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 6px;
+  gap: 8px;
 }
 
 h1 {
   font-size: 20px;
   margin: 0;
   letter-spacing: 0.4px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
 }
 
-.count {
-  margin: 0 0 12px;
+.count-inline {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .mode-panel {
@@ -79,9 +90,12 @@ h1 {
   font-weight: 700;
 }
 
+.search-panel {
+  margin-bottom: 10px;
+}
+
 .search-wrap {
   display: block;
-  margin-bottom: 10px;
 }
 
 #searchInput {
@@ -99,9 +113,7 @@ h1 {
   padding: 0;
   display: grid;
   gap: 8px;
-  height: 352px;
-  overflow: hidden;
-  align-content: start;
+  align-content: stretch;
 }
 
 .item {
@@ -109,16 +121,19 @@ h1 {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  min-height: 66px;
+  min-height: 58px;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel);
+  overflow: hidden;
 }
 
 .item-main {
   min-width: 0;
   flex: 1;
+  max-width: calc(100% - 56px);
+  overflow: hidden;
 }
 
 .item-actions {
@@ -138,27 +153,39 @@ h1 {
 
 .item.mode-recite-word.is-revealed .meaning {
   display: block;
-  margin-top: 8px;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .item.mode-recite-meaning .word {
   display: none;
 }
 
+.item.mode-recite-meaning .item-main {
+  display: flex;
+  flex-direction: column;
+}
+
 .item.mode-recite-meaning .meaning {
+  order: 1;
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   color: #27313a;
   font-weight: 700;
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .item.mode-recite-meaning.is-revealed .word {
+  order: 2;
   display: block;
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--muted);
 }
 
 .word {
@@ -203,6 +230,18 @@ button {
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.search-toggle {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: #2f3e4c;
+}
+
+.search-toggle.is-active {
+  border-color: #0f766e;
+  background: #e7f7f4;
+  color: #0f4f48;
 }
 
 .reveal {

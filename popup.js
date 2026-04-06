@@ -4,6 +4,7 @@ const MAIN_MODE_MEMORY = "memory";
 const MAIN_MODE_RECITE = "recite";
 const RECITE_VIEW_WORD = "word";
 const RECITE_VIEW_MEANING = "meaning";
+const ITEMS_PER_PAGE = 10;
 const DEFAULT_UI_MODE = {
   main: MAIN_MODE_MEMORY,
   reciteView: RECITE_VIEW_WORD
@@ -13,6 +14,8 @@ const wordList = document.getElementById("wordList");
 const countEl = document.getElementById("count");
 const emptyEl = document.getElementById("empty");
 const searchInput = document.getElementById("searchInput");
+const searchPanel = document.getElementById("searchPanel");
+const searchToggleBtn = document.getElementById("searchToggleBtn");
 const clearBtn = document.getElementById("clearBtn");
 const template = document.getElementById("wordItemTemplate");
 const modeMemoryBtn = document.getElementById("modeMemoryBtn");
@@ -44,6 +47,21 @@ async function init() {
 
 searchInput.addEventListener("input", () => {
   renderCurrentList({ resetPage: true });
+});
+
+searchToggleBtn.addEventListener("click", () => {
+  const willOpen = searchPanel.hidden;
+  searchPanel.hidden = !willOpen;
+  searchToggleBtn.classList.toggle("is-active", willOpen);
+  if (willOpen) {
+    searchInput.focus();
+    return;
+  }
+
+  if (searchInput.value.trim()) {
+    searchInput.value = "";
+    renderCurrentList({ resetPage: true });
+  }
 });
 
 clearBtn.addEventListener("click", async () => {
@@ -121,7 +139,7 @@ window.addEventListener("resize", () => {
 
 function render(list, totalCount) {
   wordList.innerHTML = "";
-  countEl.textContent = `已保存 ${cache.length} 个单词`;
+  countEl.textContent = `${cache.length}词`;
   emptyEl.style.display = totalCount ? "none" : "block";
 
   list.forEach((item) => {
@@ -217,7 +235,7 @@ function getFilteredList() {
 function renderCurrentList(options = {}) {
   const resetPage = Boolean(options.resetPage);
   const filtered = getFilteredList();
-  const itemsPerPage = calculateItemsPerPage();
+  const itemsPerPage = ITEMS_PER_PAGE;
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
 
   if (resetPage) {
@@ -236,36 +254,6 @@ function renderPager(totalCount, totalPages) {
   pageInfo.textContent = `${currentPage} / ${totalPages}`;
   prevPageBtn.disabled = currentPage <= 1;
   nextPageBtn.disabled = currentPage >= totalPages;
-}
-
-function calculateItemsPerPage() {
-  const listHeight = wordList.clientHeight;
-  if (!listHeight) {
-    return 1;
-  }
-
-  const probe = template.content.firstElementChild.cloneNode(true);
-  probe.querySelector(".word").textContent = "configuration";
-  probe.querySelector(".meaning").textContent = "配置；结构；安排";
-  applyItemModeClass(probe, "__probe__");
-  if (uiMode.main === MAIN_MODE_RECITE) {
-    probe.classList.add("is-revealed");
-  }
-
-  const revealBtn = probe.querySelector(".reveal");
-  revealBtn.hidden = uiMode.main !== MAIN_MODE_RECITE;
-
-  probe.style.visibility = "hidden";
-  probe.style.position = "absolute";
-  probe.style.pointerEvents = "none";
-  wordList.appendChild(probe);
-
-  const itemHeight = probe.getBoundingClientRect().height || 66;
-  probe.remove();
-
-  const styles = getComputedStyle(wordList);
-  const gap = Number.parseFloat(styles.rowGap || styles.gap || "8") || 8;
-  return Math.max(1, Math.floor((listHeight + gap) / (itemHeight + gap)));
 }
 
 async function getSavedWords() {

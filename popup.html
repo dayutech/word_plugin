@@ -9,11 +9,17 @@
 <body>
   <main class="app">
     <header class="top">
-      <h1>单词本</h1>
-      <button id="clearBtn" class="clear" type="button">清空</button>
+      <h1>单词本 <span id="count" class="count-inline">0</span></h1>
+      <div class="top-actions">
+        <button id="searchToggleBtn" class="icon-btn search-toggle" type="button" aria-label="搜索" title="搜索">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M16.5 16.5L21 21" />
+          </svg>
+        </button>
+        <button id="clearBtn" class="clear" type="button">清空</button>
+      </div>
     </header>
-
-    <p id="count" class="count">已保存 0 个单词</p>
 
     <section class="mode-panel" aria-label="学习模式">
       <div class="mode-group">
@@ -26,9 +32,11 @@
       </div>
     </section>
 
-    <label class="search-wrap" for="searchInput">
-      <input id="searchInput" type="text" placeholder="搜索英文单词..." />
-    </label>
+    <div id="searchPanel" class="search-panel" hidden>
+      <label class="search-wrap" for="searchInput">
+        <input id="searchInput" type="text" placeholder="搜索英文单词..." />
+      </label>
+    </div>
 
     <ul id="wordList" class="list"></ul>
     <div id="pager" class="pager" aria-label="分页">
