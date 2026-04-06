@@ -25,8 +25,14 @@
 4. 点击浏览器右上角插件图标，打开单词本查看已保存内容
 
 ## 数据存储
-- 使用 `chrome.storage.local` 本地存储
-- 存储字段包含：
+- 使用 `chrome.storage.local` + `chrome.storage.sync` 双存储
+- `local` 保存可见单词列表（用于快速读取）
+- `sync` 按单词拆分存储（`savedWord::<wordKey>`），用于跨设备同步
+- 删除策略：
+  - 本地删除时，`local` 直接删除
+  - `sync` 不直接物理删除，先写删除标记（`deleted: true`）
+  - 一致性检查时若发现“`sync` 已标记删除但 `local` 仍存在”，会同时彻底删除两端该单词
+- 每个单词字段包含：
   - `word`：英文单词
   - `meaning`：中文释义
   - `pageUrl`：来源网页链接

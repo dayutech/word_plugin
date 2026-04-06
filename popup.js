@@ -1,5 +1,10 @@
 const STORAGE_KEY = "savedWords";
 const UI_MODE_KEY = "uiMode";
+const SYNC_WORD_PREFIX = "savedWord::";
+const SYNC_MAX_ITEM_BYTES = 7600;
+const MAX_WORD_LEN = 128;
+const MAX_MEANING_LEN = 1500;
+const MAX_PAGE_URL_LEN = 1024;
 const MAIN_MODE_MEMORY = "memory";
 const MAIN_MODE_RECITE = "recite";
 const RECITE_VIEW_WORD = "word";
@@ -93,8 +98,10 @@ function bindEvents() {
       return;
     }
 
+    const deletedWords = cache.map((item) => item.word);
     cache = [];
     await chrome.storage.local.set({ [STORAGE_KEY]: [] });
+    await markWordsDeletedInSync(deletedWords);
     startReciteRound();
     renderCurrentList({ resetPage: true, preferredSelection: { type: "top", id: TOP_CLEAR } });
   });
@@ -506,9 +513,11 @@ function toggleRevealByKey(itemKey) {
 
 async function deleteItemByKey(itemKey) {
   const fallback = getDeleteFallbackSelection(itemKey);
+  const deletedItem = cache.find((entry) => normalizeWordKey(entry.word) === itemKey);
   cache = cache.filter((entry) => normalizeWordKey(entry.word) !== itemKey);
   revealedKeys.delete(itemKey);
   await chrome.storage.local.set({ [STORAGE_KEY]: cache });
+  await markWordsDeletedInSync([deletedItem?.word || itemKey]);
   if (uiMode.main === MAIN_MODE_RECITE) {
     startReciteRound();
   }
@@ -853,9 +862,53 @@ function findTopPosition(id, rows) {
 }
 
 async function getSavedWords() {
-  const data = await chrome.storage.local.get(STORAGE_KEY);
-  const list = data[STORAGE_KEY];
-  return Array.isArray(list) ? list : [];
+  const localData = await chrome.storage.local.get(STORAGE_KEY);
+  const localList = mergeWordLists(asWordArray(localData[STORAGE_KEY]), []);
+  const localMap = new Map(localList.map((item) => [normalizeWordKey(item.word), item]));
+
+  const syncSnapshot = await getSyncSnapshot();
+  const syncEntries = syncSnapshot.wordEntries;
+
+  const conflictKeys = [];
+  syncEntries.forEach((entry, key) => {
+    if (entry.deleted && localMap.has(key)) {
+      conflictKeys.push(key);
+    }
+  });
+
+  conflictKeys.forEach((key) => {
+    localMap.delete(key);
+    syncEntries.delete(key);
+  });
+
+  const mergedMap = new Map(localMap);
+  syncEntries.forEach((entry, key) => {
+    if (entry.deleted) {
+      return;
+    }
+    const nextItem = syncEntryToWordItem(entry);
+    const currentItem = mergedMap.get(key);
+    mergedMap.set(key, currentItem ? mergeWordItem(currentItem, nextItem) : nextItem);
+  });
+
+  const merged = sortWordList(Array.from(mergedMap.values()));
+  const localAfterConflict = sortWordList(Array.from(localMap.values()));
+  if (!isSameWordList(localAfterConflict, merged)) {
+    await chrome.storage.local.set({ [STORAGE_KEY]: merged });
+  }
+
+  const desiredSyncEntries = new Map();
+  merged.forEach((item) => {
+    desiredSyncEntries.set(normalizeWordKey(item.word), buildActiveSyncEntry(item));
+  });
+  syncEntries.forEach((entry, key) => {
+    if (entry.deleted && !mergedMap.has(key)) {
+      desiredSyncEntries.set(key, buildDeletedSyncEntry(entry.word, entry.deletedAt));
+    }
+  });
+
+  await applySyncWordEntries(desiredSyncEntries, syncSnapshot.all);
+  return merged;
 }
 
 async function getUiMode() {
@@ -868,6 +921,260 @@ async function getUiMode() {
 
 async function saveUiMode() {
   await chrome.storage.local.set({ [UI_MODE_KEY]: uiMode });
+}
+
+async function markWordsDeletedInSync(words) {
+  const deleteMap = new Map();
+  asWordArray(words).forEach((word) => {
+    const rawWord = String(word || "").trim();
+    const key = normalizeWordKey(rawWord);
+    if (key) {
+      deleteMap.set(key, rawWord || key);
+    }
+  });
+  if (!deleteMap.size) {
+    return;
+  }
+
+  const syncSnapshot = await getSyncSnapshot();
+  const entries = syncSnapshot.wordEntries;
+  const deletedAt = new Date().toISOString();
+  deleteMap.forEach((rawWord, key) => {
+    const current = entries.get(key);
+    const canonicalWord = current?.word || rawWord || key;
+    entries.set(key, buildDeletedSyncEntry(canonicalWord, deletedAt));
+  });
+
+  await applySyncWordEntries(entries, syncSnapshot.all);
+}
+
+function asWordArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function normalizeWordItem(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const word = String(item.word || "").trim().slice(0, MAX_WORD_LEN);
+  if (!word) {
+    return null;
+  }
+
+  const meaning = String(item.meaning || "").trim().slice(0, MAX_MEANING_LEN);
+  const pageUrl = String(item.pageUrl || "").trim().slice(0, MAX_PAGE_URL_LEN);
+  const createdAt = String(item.createdAt || "").trim() || new Date().toISOString();
+  return { word, meaning, pageUrl, createdAt };
+}
+
+function mergeWordItem(current, next) {
+  if (!current) {
+    return next;
+  }
+
+  const currentTime = toTime(current.createdAt);
+  const nextTime = toTime(next.createdAt);
+  const newer = nextTime >= currentTime ? next : current;
+  const older = newer === next ? current : next;
+  return {
+    word: newer.word || older.word,
+    meaning: newer.meaning || older.meaning,
+    pageUrl: newer.pageUrl || older.pageUrl,
+    createdAt: newer.createdAt || older.createdAt || new Date().toISOString()
+  };
+}
+
+function mergeWordLists(primary, secondary) {
+  const map = new Map();
+  [...asWordArray(primary), ...asWordArray(secondary)].forEach((item) => {
+    const normalized = normalizeWordItem(item);
+    if (!normalized) {
+      return;
+    }
+    const key = normalizeWordKey(normalized.word);
+    map.set(key, mergeWordItem(map.get(key), normalized));
+  });
+  return sortWordList(Array.from(map.values()));
+}
+
+function sortWordList(list) {
+  return [...asWordArray(list)].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt));
+}
+
+function toTime(value) {
+  const timestamp = Date.parse(String(value || ""));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function isSameWordList(a, b) {
+  return JSON.stringify(asWordArray(a)) === JSON.stringify(asWordArray(b));
+}
+
+function buildActiveSyncEntry(item) {
+  const normalized = normalizeWordItem(item);
+  return normalized ? { ...normalized } : null;
+}
+
+function buildDeletedSyncEntry(word, deletedAt) {
+  const fallback = String(word || "").trim();
+  if (!fallback) {
+    return null;
+  }
+  return {
+    word: fallback.slice(0, MAX_WORD_LEN),
+    deleted: true,
+    deletedAt: String(deletedAt || "").trim() || new Date().toISOString()
+  };
+}
+
+function normalizeSyncEntry(value, fallbackWord = "") {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const maybeDeleted = value.deleted === true;
+  if (maybeDeleted) {
+    const word = String(value.word || fallbackWord || "").trim().slice(0, MAX_WORD_LEN);
+    if (!word) {
+      return null;
+    }
+    return buildDeletedSyncEntry(word, value.deletedAt);
+  }
+
+  return buildActiveSyncEntry(value);
+}
+
+function syncEntryToWordItem(entry) {
+  return {
+    word: entry.word,
+    meaning: entry.meaning || "",
+    pageUrl: entry.pageUrl || "",
+    createdAt: entry.createdAt || new Date().toISOString()
+  };
+}
+
+function mergeSyncEntry(current, next) {
+  if (!current) {
+    return next;
+  }
+  if (current.deleted && !next.deleted) {
+    return current;
+  }
+  if (!current.deleted && next.deleted) {
+    return next;
+  }
+  if (current.deleted && next.deleted) {
+    return toTime(next.deletedAt) >= toTime(current.deletedAt) ? next : current;
+  }
+  return buildActiveSyncEntry(mergeWordItem(syncEntryToWordItem(current), syncEntryToWordItem(next)));
+}
+
+function getSyncWordKey(word) {
+  return `${SYNC_WORD_PREFIX}${encodeURIComponent(normalizeWordKey(word))}`;
+}
+
+function parseWordFromSyncKey(storageKey) {
+  const encoded = String(storageKey || "").slice(SYNC_WORD_PREFIX.length);
+  if (!encoded) {
+    return "";
+  }
+  try {
+    return decodeURIComponent(encoded);
+  } catch (error) {
+    return encoded;
+  }
+}
+
+async function getSyncSnapshot() {
+  const all = await safeSyncGet(null);
+  const wordEntries = new Map();
+
+  const legacyList = mergeWordLists(asWordArray(all[STORAGE_KEY]), []);
+  legacyList.forEach((item) => {
+    wordEntries.set(normalizeWordKey(item.word), buildActiveSyncEntry(item));
+  });
+
+  Object.entries(all).forEach(([storageKey, value]) => {
+    if (!storageKey.startsWith(SYNC_WORD_PREFIX)) {
+      return;
+    }
+    const fallbackWord = parseWordFromSyncKey(storageKey);
+    const normalized = normalizeSyncEntry(value, fallbackWord);
+    if (!normalized) {
+      return;
+    }
+    const key = normalizeWordKey(normalized.word);
+    wordEntries.set(key, mergeSyncEntry(wordEntries.get(key), normalized));
+  });
+
+  return { all, wordEntries };
+}
+
+async function applySyncWordEntries(wordEntries, allSnapshot) {
+  const all = allSnapshot && typeof allSnapshot === "object" ? allSnapshot : {};
+  const payload = {};
+  wordEntries.forEach((entry, key) => {
+    const syncKey = getSyncWordKey(key);
+    if (!syncKey || !entry) {
+      return;
+    }
+    if (getStorageEntryBytes(syncKey, entry) > SYNC_MAX_ITEM_BYTES) {
+      return;
+    }
+    payload[syncKey] = entry;
+  });
+
+  const desiredKeys = new Set(Object.keys(payload));
+  const existingKeys = Object.keys(all).filter((key) => key.startsWith(SYNC_WORD_PREFIX));
+  const removeKeys = existingKeys.filter((key) => !desiredKeys.has(key));
+  if (STORAGE_KEY in all) {
+    removeKeys.push(STORAGE_KEY);
+  }
+  if (removeKeys.length) {
+    await safeSyncRemove(removeKeys);
+  }
+
+  for (const [key, value] of Object.entries(payload)) {
+    if (JSON.stringify(all[key]) === JSON.stringify(value)) {
+      continue;
+    }
+    await safeSyncSet({ [key]: value }, key);
+  }
+}
+
+function getStorageEntryBytes(key, value) {
+  const encoder = new TextEncoder();
+  return encoder.encode(JSON.stringify({ [key]: value })).length;
+}
+
+async function safeSyncGet(keys) {
+  try {
+    return await chrome.storage.sync.get(keys);
+  } catch (error) {
+    console.warn("sync.get failed:", error);
+    return {};
+  }
+}
+
+async function safeSyncSet(payload, label = "") {
+  try {
+    await chrome.storage.sync.set(payload);
+    return true;
+  } catch (error) {
+    console.warn("sync.set failed:", label || Object.keys(payload)[0] || "", error);
+    return false;
+  }
+}
+
+async function safeSyncRemove(keys) {
+  try {
+    await chrome.storage.sync.remove(keys);
+    return true;
+  } catch (error) {
+    console.warn("sync.remove failed:", keys, error);
+    return false;
+  }
 }
 
 function getReciteOrderedList() {
