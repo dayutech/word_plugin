@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Word Saver</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main class="app">
+    <header class="top">
+      <h1>单词本</h1>
+      <button id="clearBtn" class="clear" type="button">清空</button>
+    </header>
+
+    <p id="count" class="count">已保存 0 个单词</p>
+
+    <section class="mode-panel" aria-label="学习模式">
+      <div class="mode-group">
+        <button id="modeMemoryBtn" class="mode-btn" type="button">记忆模式</button>
+        <button id="modeReciteBtn" class="mode-btn" type="button">背词模式</button>
+      </div>
+      <div id="reciteSubModes" class="mode-group">
+        <button id="reciteWordBtn" class="mode-btn" type="button">仅单词</button>
+        <button id="reciteMeaningBtn" class="mode-btn" type="button">仅释义</button>
+      </div>
+    </section>
+
+    <label class="search-wrap" for="searchInput">
+      <input id="searchInput" type="text" placeholder="搜索英文单词..." />
+    </label>
+
+    <ul id="wordList" class="list"></ul>
+    <div id="pager" class="pager" aria-label="分页">
+      <button id="prevPageBtn" class="pager-btn" type="button" aria-label="上一页" title="上一页">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+      </button>
+      <span id="pageInfo" class="page-info">1 / 1</span>
+      <button id="nextPageBtn" class="pager-btn" type="button" aria-label="下一页" title="下一页">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+    </div>
+    <p id="empty" class="empty">还没有保存单词。请在网页中选中英文单词并右键“保存单词”。</p>
+  </main>
+
+  <template id="wordItemTemplate">
+    <li class="item">
+      <div class="item-main">
+        <p class="word"></p>
+        <p class="meaning"></p>
+      </div>
+      <div class="item-actions">
+        <button class="reveal icon-btn" type="button" aria-label="显示答案" title="显示答案">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z" />
+            <circle cx="12" cy="12" r="3.2" />
+          </svg>
+        </button>
+        <button class="delete icon-btn" type="button" aria-label="删除单词" title="删除单词">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h16" />
+            <path d="M9 7V5h6v2" />
+            <path d="M7 7l1 12h8l1-12" />
+            <path d="M10 11v5M14 11v5" />
+          </svg>
+        </button>
+      </div>
+    </li>
+  </template>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,286 @@
+:root {
+  --bg: #f6f2ec;
+  --panel: #fffdf8;
+  --text: #232323;
+  --muted: #6a675f;
+  --line: #ddd4c7;
+  --accent: #0c7c59;
+  --accent-soft: #e2f5ef;
+  --danger: #b42318;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 360px;
+  max-width: 420px;
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top right, #fff8eb 0%, var(--bg) 58%);
+}
+
+.app {
+  padding: 14px;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0;
+  letter-spacing: 0.4px;
+}
+
+.count {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mode-panel {
+  margin-bottom: 10px;
+}
+
+.mode-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+#reciteSubModes {
+  margin-top: 8px;
+}
+
+#reciteSubModes[hidden] {
+  display: none;
+}
+
+.mode-btn {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  color: #3f3a2f;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.mode-btn.is-active {
+  border-color: #0f766e;
+  background: #e7f7f4;
+  color: #0f4f48;
+  font-weight: 700;
+}
+
+.search-wrap {
+  display: block;
+  margin-bottom: 10px;
+}
+
+#searchInput {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 14px;
+  background: #ffffff;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  height: 352px;
+  overflow: hidden;
+  align-content: start;
+}
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-height: 66px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.item-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.item.mode-recite-word .meaning {
+  display: none;
+}
+
+.item.mode-recite-word .word {
+  font-size: 20px;
+}
+
+.item.mode-recite-word.is-revealed .meaning {
+  display: block;
+  margin-top: 8px;
+}
+
+.item.mode-recite-meaning .word {
+  display: none;
+}
+
+.item.mode-recite-meaning .meaning {
+  margin: 0;
+  font-size: 18px;
+  color: #27313a;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item.mode-recite-meaning.is-revealed .word {
+  display: block;
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.word {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meaning {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+button {
+  cursor: pointer;
+}
+
+.icon-btn {
+  border: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.reveal {
+  color: #0b5394;
+  background: #e8f2ff;
+}
+
+.reveal.is-active {
+  color: #0a5c2d;
+  background: #e4f6e8;
+}
+
+.reveal[hidden] {
+  display: none;
+}
+
+.delete {
+  color: var(--danger);
+  background: #fce8e6;
+}
+
+.clear {
+  border: none;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.pager {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.pager[hidden] {
+  display: none;
+}
+
+.pager-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #2f3e4c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pager-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-info {
+  min-width: 56px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.empty {
+  margin: 14px 0 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
